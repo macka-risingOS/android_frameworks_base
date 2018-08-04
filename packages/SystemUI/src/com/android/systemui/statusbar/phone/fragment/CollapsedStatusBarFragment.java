@@ -562,6 +562,9 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
             updateNotificationIconAreaAndCallChip(animate);
         }
 
+        if (mClockController.getClock() == null)
+            return;
+
         // The clock may have already been hidden, but we might want to shift its
         // visibility to GONE from INVISIBLE or vice versa
         if (newModel.getShowClock() != previousModel.getShowClock()
@@ -585,13 +588,15 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
                 && shouldHideStatusBar()
                 && !(mStatusBarStateController.getState() == StatusBarState.KEYGUARD
                         && headsUpVisible)) {
-            boolean isRightClock = mClockView.getId() == R.id.clock_right;
-            // Hide everything
-            return new StatusBarVisibilityModel(
-                    /* showClock= */ isRightClock,
-                    /* showNotificationIcons= */ false,
-                    /* showOngoingCallChip= */ false,
-                    /* showSystemInfo= */ false);
+            if (mClockView != null) {
+                boolean isRightClock = mClockView.getId() == R.id.clock_right;
+                // Hide everything
+                return new StatusBarVisibilityModel(
+                        /* showClock= */ isRightClock,
+                        /* showNotificationIcons= */ false,
+                        /* showOngoingCallChip= */ false,
+                        /* showSystemInfo= */ false);
+            }
         }
 
         boolean showClock = externalModel.getShowClock() && !headsUpVisible;
@@ -738,6 +743,9 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
      * don't set the clock GONE otherwise it'll mess up the animation.
      */
     private int clockHiddenMode() {
+        if (mClockController.getClock() == null)
+            return View.GONE;
+
         if (!mShadeExpansionStateManager.isClosed() && !mKeyguardStateController.isShowing()
                 && !mStatusBarStateController.isDozing()
                 && mClockController.getClock(mStatusBar).shouldBeVisible()) {
@@ -791,6 +799,8 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
      * Hides a view.
      */
     private void animateHide(final View v, boolean animate) {
+        if (v == null)
+            return;
         animateHiddenState(v, View.INVISIBLE, animate);
     }
 
@@ -798,6 +808,8 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
      * Shows a view, and synchronizes the animation with Keyguard exit animations, if applicable.
      */
     private void animateShow(View v, boolean animate) {
+        if (v == null)
+            return;
         v.animate().cancel();
         v.setVisibility(View.VISIBLE);
         if (!animate) {
