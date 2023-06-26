@@ -1501,6 +1501,7 @@ public final class SensorPrivacyService extends SystemService {
         @Override
         public void binderDied() {
             mSensorPrivacyServiceImpl.removeSensorPrivacyListener(mListener);
+            mSensorPrivacyServiceImpl.removeToggleSensorPrivacyListener(mListener);
         }
 
         public void destroy() {
