@@ -90,6 +90,7 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
     private final Executor mMainExecutor;
     private final Handler mBackgroundHandler;
     private final BrightnessObserver mBrightnessObserver;
+    private final OnMaxBrightnessCallback mOnMaxBrightnessCallback;
 
     private final DisplayTracker.Callback mBrightnessListener = new DisplayTracker.Callback() {
         @Override
@@ -308,7 +309,8 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
             @Nullable IVrManager iVrManager,
             @Main Executor mainExecutor,
             @Main Looper mainLooper,
-            @Background Handler bgHandler) {
+            @Background Handler bgHandler,
+            OnMaxBrightnessCallback onMaxBrightnessCallback) {
         mContext = context;
         mControl = control;
         mControl.setMax(GAMMA_SPACE_MAX);
@@ -317,6 +319,8 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
         mUserTracker = userTracker;
         mDisplayTracker = displayTracker;
         mSecureSettings = secureSettings;
+        mOnMaxBrightnessCallback = onMaxBrightnessCallback;
+
         mDisplayId = mContext.getDisplayId();
         mDisplayManager = displayManager;
         mVrManager = iVrManager;
@@ -370,7 +374,9 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
             // TODO(brightnessfloat): change to use float value instead.
             MetricsLogger.action(mContext, metric,
                     BrightnessSynchronizer.brightnessFloatToInt(valFloat));
-
+            if (value == mControl.getMax()) {
+                mOnMaxBrightnessCallback.onMaxBrightness();
+            }
         }
         mUserChangedBrightness = tracking && !stopTracking;
         setBrightness(valFloat);
@@ -474,5 +480,13 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
     public interface Factory {
         /** Create a {@link BrightnessController} */
         BrightnessController create(ToggleSlider toggleSlider);
+    }
+
+    /**
+     * Callback Interface that notifies when the brightness slider reaches its maximum brightness.
+     */
+    public interface OnMaxBrightnessCallback {
+        /** Callback that notifies when max brightness has happened **/
+        void onMaxBrightness();
     }
 }
