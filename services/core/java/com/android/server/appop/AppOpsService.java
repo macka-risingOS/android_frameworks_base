@@ -5947,7 +5947,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                                 }
                             }
                         }
-                        synchronized (this) {
+                        synchronized (AppOpsService.this) {
                             int numPkgs = mRarelyUsedPackages.size();
                             for (int i = 0; i < numPkgs; i++) {
                                 candidates.add(mRarelyUsedPackages.valueAt(i));
