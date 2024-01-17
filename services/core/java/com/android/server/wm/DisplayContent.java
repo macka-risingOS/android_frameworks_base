@@ -6789,6 +6789,9 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         /** Whether {@link #mAnimatingRecents} is going to be the top activity. */
         private boolean mRecentsWillBeTop;
 
+        /** {@code true} if recent animation is finished */
+        boolean isRecentOff = false;
+
         /**
          * If the recents activity has a fixed orientation which is different from the current top
          * activity, it will be rotated before being shown so we avoid a screen rotation animation
@@ -6871,6 +6874,8 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
 
         @Override
         public void onAppTransitionFinishedLocked(IBinder token) {
+            boolean tempIsRecentOff = isRecentOff;
+            isRecentOff = false;
             final ActivityRecord r = getActivityRecord(token);
             // Ignore the animating recents so the fixed rotation transform won't be switched twice
             // by finishing the recents animation and moving it to top. That also avoids flickering
@@ -6908,7 +6913,11 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
                 final Task task = r.getTask();
                 if (task == null || task != mFixedRotationLaunchingApp.getTask()) {
                     // Different tasks won't be in one activity transition animation.
-                    return;
+                    if (tempIsRecentOff) {
+                        Slog.i(TAG, "Device can rotate after finishing the transition of recent.");
+                    } else {
+                        return;
+                    }
                 }
                 if (task.getActivity(ActivityRecord::isInTransition) != null) {
                     return;
