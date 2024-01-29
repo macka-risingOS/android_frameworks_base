@@ -23,16 +23,13 @@ import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.hardware.camera2.CameraManager;
 import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.media.RemoteControlClient;
 import android.media.RemoteController;
-import android.media.session.MediaController;
-import android.media.session.MediaSessionManager;
-import android.media.session.MediaSessionLegacyHelper;
-import android.media.session.PlaybackState;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.KeyEvent;
@@ -53,6 +50,7 @@ import com.android.settingslib.Utils;
 import com.android.systemui.R;
 import com.android.systemui.Dependency;
 import com.android.systemui.plugins.ActivityStarter;
+import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener;
 import com.android.systemui.statusbar.policy.FlashlightController;
@@ -73,7 +71,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-public class LockScreenWidgets extends LinearLayout implements TunerService.Tunable {
+import com.android.internal.util.rising.OmniJawsClient;
+
+public class LockScreenWidgets extends LinearLayout implements TunerService.Tunable, OmniJawsClient.OmniJawsObserver {
 
     private static final String LOCKSCREEN_WIDGETS =
             "system:lockscreen_widgets";
@@ -93,13 +93,17 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
             R.id.kg_item_placeholder4
     };
 
+    private OmniJawsClient mWeatherClient;
+    private OmniJawsClient.WeatherInfo mWeatherInfo;
+
     private ActivityStarter mActivityStarter;
     private ConfigurationController mConfigurationController;
     private FlashlightController mFlashlightController;
+    private StatusBarStateController mStatusBarStateController;
 
     private Context mContext;
-    private ImageView mWidget1, mWidget2, mWidget3, mWidget4, mediaButton, torchButton;
-    private ExtendedFloatingActionButton mediaButtonFab, torchButtonFab;
+    private ImageView mWidget1, mWidget2, mWidget3, mWidget4, mediaButton, torchButton, weatherButton;
+    private ExtendedFloatingActionButton mediaButtonFab, torchButtonFab, weatherButtonFab;
     private int mDarkColor, mDarkColorActive, mLightColor, mLightColorActive;
 
     private CameraManager mCameraManager;
@@ -115,9 +119,11 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
     private String mWidgetImagePath;
 
     private AudioManager mAudioManager;
-    private MediaSessionManager mSessionManager;
     private Metadata mMetadata = new Metadata();
     private RemoteController mRemoteController;
+    private boolean mMediaActive = false;
+    
+    private boolean mDozing;
 
     final ConfigurationListener mConfigurationListener = new ConfigurationListener() {
         @Override
@@ -136,19 +142,104 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         mContext = context;
         mAudioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
         mCameraManager = (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
-        mSessionManager = (MediaSessionManager) mContext.getSystemService(Context.MEDIA_SESSION_SERVICE);
         mRemoteController = new RemoteController(mContext, mRCClientUpdateListener);
         mAudioManager.registerRemoteController(mRemoteController);
         mDarkColor = mContext.getResources().getColor(R.color.lockscreen_widget_background_color_dark);
         mLightColor = mContext.getResources().getColor(R.color.lockscreen_widget_background_color_light);
         mDarkColorActive = mContext.getResources().getColor(R.color.lockscreen_widget_active_color_dark);
         mLightColorActive = mContext.getResources().getColor(R.color.lockscreen_widget_active_color_light);
+        if (mWeatherClient == null) {
+            mWeatherClient = new OmniJawsClient(context);
+        }
         try {
             mCameraId = mCameraManager.getCameraIdList()[0];
         } catch (Exception e) {}
         Dependency.get(TunerService.class).addTunable(this, LOCKSCREEN_WIDGETS, LOCKSCREEN_WIDGETS_EXTRAS);
     }
 
+    public void enableWeatherUpdates() {
+        if (mWeatherClient != null) {
+            mWeatherClient.addObserver(this);
+            queryAndUpdateWeather();
+        }
+    }
+
+    public void disableWeatherUpdates() {
+        if (mWeatherClient != null) {
+            mWeatherClient.removeObserver(this);
+        }
+    }
+
+    @Override
+    public void weatherError(int errorReason) {
+        if (errorReason == OmniJawsClient.EXTRA_ERROR_DISABLED) {
+            mWeatherInfo = null;
+        }
+    }
+
+    @Override
+    public void weatherUpdated() {
+        queryAndUpdateWeather();
+    }
+
+    @Override
+    public void updateSettings() {
+        queryAndUpdateWeather();
+    }
+
+    private void queryAndUpdateWeather() {
+        try {
+            if (mWeatherClient == null || !mWeatherClient.isOmniJawsEnabled()) {
+                return;
+            }
+            mWeatherClient.queryWeather();
+            mWeatherInfo = mWeatherClient.getWeatherInfo();
+            if (mWeatherInfo != null) {
+            	// OpenWeatherMap
+                String formattedCondition = mWeatherInfo.condition;
+                if (formattedCondition.toLowerCase().contains("clouds")) {
+                    formattedCondition = mContext.getResources().getString(R.string.weather_condition_clouds);
+                } else if (formattedCondition.toLowerCase().contains("rain")) {
+                    formattedCondition = mContext.getResources().getString(R.string.weather_condition_rain);
+                } else if (formattedCondition.toLowerCase().contains("clear")) {
+                    formattedCondition = mContext.getResources().getString(R.string.weather_condition_clear);
+                } else if (formattedCondition.toLowerCase().contains("storm")) {
+                    formattedCondition = mContext.getResources().getString(R.string.weather_condition_storm);
+                } else if (formattedCondition.toLowerCase().contains("snow")) {
+                    formattedCondition = mContext.getResources().getString(R.string.weather_condition_snow);
+                } else if (formattedCondition.toLowerCase().contains("wind")) {
+                    formattedCondition = mContext.getResources().getString(R.string.weather_condition_wind);
+                } else if (formattedCondition.toLowerCase().contains("mist")) {
+                    formattedCondition = mContext.getResources().getString(R.string.weather_condition_mist);
+                }
+                
+				// MET Norway
+				if (formattedCondition.toLowerCase().contains("_")) {
+					final String[] words = formattedCondition.split("_");
+					final StringBuilder formattedConditionBuilder = new StringBuilder();
+					for (String word : words) {
+						final String capitalizedWord = word.substring(0, 1).toUpperCase() + word.substring(1);
+						formattedConditionBuilder.append(capitalizedWord).append(" ");
+					}
+					formattedCondition = formattedConditionBuilder.toString().trim();
+				}
+                
+                final Drawable d = mWeatherClient.getWeatherConditionImage(mWeatherInfo.conditionCode);
+                if (weatherButtonFab != null) {
+                	weatherButtonFab.setIcon(d);
+                	weatherButtonFab.setText(formattedCondition);
+                	weatherButtonFab.setIconTint(null);
+                }
+                if (weatherButton != null) {
+                	weatherButton.setImageDrawable(d);
+                	weatherButton.setImageTintList(null);
+                }
+            }
+        } catch(Exception e) {
+            // Do nothing
+        }
+    }
+    
     public void setActivityStarter(ActivityStarter as) {
         mActivityStarter = as;
     }
@@ -166,6 +257,29 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
             mFlashlightController.addCallback(mFlashlightCallback);
         }
     }
+    
+    public void setStatusBarStateController(StatusBarStateController sbsc) {
+		mStatusBarStateController = sbsc;
+		if (mStatusBarStateController != null) {
+		    mStatusBarStateController.addCallback(mStatusBarStateListener);
+		    mStatusBarStateListener.onDozingChanged(mStatusBarStateController.isDozing());
+        }
+    }
+
+    private final StatusBarStateController.StateListener mStatusBarStateListener =
+            new StatusBarStateController.StateListener() {
+        @Override
+        public void onStateChanged(int newState) {}
+
+        @Override
+        public void onDozingChanged(boolean dozing) {
+            if (mDozing == dozing) {
+                return;
+            }
+            mDozing = dozing;
+            updateContainerVisibility();
+        }
+    };
 
     private final FlashlightController.FlashlightListener mFlashlightCallback =
             new FlashlightController.FlashlightListener() {
@@ -194,6 +308,7 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         public void onClientChange(boolean clearing) {
             if (clearing) {
                 mMetadata.clear();
+                mMediaActive = false;
             }
             updateMediaPlaybackState();
         }
@@ -201,7 +316,7 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         @Override
         public void onClientPlaybackStateUpdate(int state, long stateChangeTimeMs,
                 long currentPosMs, float speed) {
-            updateMediaPlaybackState();
+            playbackStateUpdate(state);
         }
 
         @Override
@@ -243,6 +358,10 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         if (mFlashlightController != null) {
             mFlashlightController.removeCallback(mFlashlightCallback);
         }
+        if (!mMainLockscreenWidgetsList.contains("weather") 
+        	&& !mSecondaryLockscreenWidgetsList.contains("weather")) {
+        	disableWeatherUpdates();
+        }
     }
 
     @Override
@@ -281,9 +400,30 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         }
     }
 
+    private void playbackStateUpdate(int state) {
+        if (mediaButton == null && mediaButtonFab == null) return;
+        boolean active;
+        switch (state) {
+            case RemoteControlClient.PLAYSTATE_PLAYING:
+                active = true;
+                break;
+            case RemoteControlClient.PLAYSTATE_ERROR:
+            case RemoteControlClient.PLAYSTATE_PAUSED:
+            default:
+                active = false;
+                break;
+        }
+        if (active != mMediaActive) {
+            mMediaActive = active;
+        }
+        updateMediaPlaybackState();
+    }
+
     private void updateContainerVisibility() {
-        final boolean isMainWidgetsEmpty = TextUtils.isEmpty(mMainLockscreenWidgetsList) || mMainLockscreenWidgetsList == null;
-        final boolean isSecondaryWidgetsEmpty = TextUtils.isEmpty(mSecondaryLockscreenWidgetsList) || mSecondaryLockscreenWidgetsList == null;
+        final boolean isMainWidgetsEmpty = TextUtils.isEmpty(mMainLockscreenWidgetsList) 
+        	|| mMainLockscreenWidgetsList == null;
+        final boolean isSecondaryWidgetsEmpty = TextUtils.isEmpty(mSecondaryLockscreenWidgetsList) 
+        	|| mSecondaryLockscreenWidgetsList == null;
         final boolean isEmpty = isMainWidgetsEmpty && isSecondaryWidgetsEmpty;
         final View mainWidgetsContainer = findViewById(R.id.main_widgets_container);
         if (mainWidgetsContainer != null) {
@@ -293,7 +433,8 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         if (secondaryWidgetsContainer != null) {
             secondaryWidgetsContainer.setVisibility(isSecondaryWidgetsEmpty ? View.GONE : View.VISIBLE);
         }
-        setVisibility(isEmpty ? View.GONE : View.VISIBLE);
+        final boolean shouldHideContainer = isEmpty || mDozing;
+        setVisibility(shouldHideContainer ? View.GONE : View.VISIBLE);
     }
 
     private void updateWidgetViews() {
@@ -372,6 +513,16 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
                 }
                 setUpWidgetResources(iv, efab, v -> toggleMediaPlaybackState(), R.drawable.ic_media_play, R.string.controls_media_button_play);
                 break;
+			case "weather":
+                if (iv != null) {
+                    weatherButton = iv;
+                }
+                if (efab != null) {
+                    weatherButtonFab = efab;
+                }
+                setUpWidgetResources(iv, efab, v -> launchWeatherApp(), R.drawable.ic_weather, R.string.weather_data_unavailable);
+                enableWeatherUpdates();
+                break;
             default:
                 break;
         }
@@ -401,49 +552,40 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         }
         if (iv != null) {
             iv.setBackgroundTintList(ColorStateList.valueOf(bgTint));
-            iv.setImageTintList(ColorStateList.valueOf(tintColor));
+            if (iv != weatherButton) {
+            	iv.setImageTintList(ColorStateList.valueOf(tintColor));
+            } else {
+            	iv.setImageTintList(null);
+            }
         }
         if (efab != null) {
             efab.setBackgroundTintList(ColorStateList.valueOf(bgTint));
-            efab.setIconTint(ColorStateList.valueOf(tintColor));
+            if (efab != weatherButtonFab) {
+            	efab.setIconTint(ColorStateList.valueOf(tintColor));
+            } else {
+            	efab.setIconTint(null);
+            }
             efab.setTextColor(tintColor);
         }
     }
 
     private void toggleMediaPlaybackState() {
-        dispatchMediaKeyWithWakeLockToMediaSession(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
-        updateMediaPlaybackState();
-    }
-    
-    private void toggleMediaPlaybackStateDoubleTap() {
-        dispatchMediaKeyWithWakeLockToMediaSession(KeyEvent.KEYCODE_MEDIA_NEXT);
+        if (isMusicActive()) {
+            final KeyEvent pauseDownEvent = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE);
+            final KeyEvent pauseUpEvent = new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE);
+            mAudioManager.dispatchMediaKeyEvent(pauseDownEvent);
+            mAudioManager.dispatchMediaKeyEvent(pauseUpEvent);
+        } else {
+            final KeyEvent playDownEvent = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY);
+            final KeyEvent playUpEvent = new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY);
+            mAudioManager.dispatchMediaKeyEvent(playDownEvent);
+            mAudioManager.dispatchMediaKeyEvent(playUpEvent);
+        }
         updateMediaPlaybackState();
     }
 
     private boolean isMusicActive() {
-        if (mSessionManager != null) {
-            List<MediaController> controllers = mSessionManager.getActiveSessions(null);
-            for (MediaController controller : controllers) {
-                PlaybackState state = controller.getPlaybackState();
-                if (state != null && state.getState() == PlaybackState.STATE_PLAYING) {
-                    return true;
-                }
-            }
-        }
-        return mAudioManager != null && mAudioManager.isMusicActive();
-    }
-
-    private void dispatchMediaKeyWithWakeLockToMediaSession(final int keycode) {
-        final MediaSessionLegacyHelper helper = MediaSessionLegacyHelper.getHelper(mContext);
-        if (helper == null) {
-            return;
-        }
-        KeyEvent event = new KeyEvent(SystemClock.uptimeMillis(),
-                SystemClock.uptimeMillis(), KeyEvent.ACTION_DOWN, keycode, 0);
-        helper.sendMediaButtonEvent(event, true);
-        event = KeyEvent.changeAction(event, KeyEvent.ACTION_UP);
-        helper.sendMediaButtonEvent(event, true);
-        updateMediaPlaybackState();
+        return mMediaActive && mAudioManager.isMusicActive();
     }
 
     private void updateMediaPlaybackState() {
@@ -484,6 +626,13 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         launchIntent.addCategory(Intent.CATEGORY_APP_CALCULATOR);
         launchAppIfAvailable(launchIntent, R.string.calculator);
     }
+
+	private void launchWeatherApp() {
+		final Intent launchIntent = new Intent();
+		launchIntent.setAction(Intent.ACTION_MAIN);
+		launchIntent.setClassName("org.omnirom.omnijaws", "org.omnirom.omnijaws.SettingsActivity");
+		launchAppIfAvailable(launchIntent, R.string.omnijaws_weather);
+	}
 
     private void toggleFlashlight() {
         if (torchButton == null && torchButtonFab == null) return;

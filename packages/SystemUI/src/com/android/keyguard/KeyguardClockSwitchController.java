@@ -267,6 +267,7 @@ public class KeyguardClockSwitchController extends ViewController<KeyguardClockS
         lsWidgets.setActivityStarter(mActivityStarter);
         lsWidgets.setConfigurationController(mConfigurationController);
         lsWidgets.setFlashLightController(mFlashlightController);
+        lsWidgets.setStatusBarStateController(mStatusBarStateController);
 
         if (!mOnlyClock) {
             mDumpManager.unregisterDumpable(getClass().toString()); // unregister previous clocks
