@@ -621,8 +621,8 @@ public class AppOpsService extends IAppOpsService.Stub {
             return mAppOpsCheckingService.getPackageMode(packageName, this.op,
                     UserHandle.getUserId(this.uid));
         }
-        boolean setMode(@Mode int mode) {
-            return mAppOpsCheckingService.setPackageMode(packageName, this.op, mode,
+        void setMode(@Mode int mode) {
+            mAppOpsCheckingService.setPackageMode(packageName, this.op, mode,
                     UserHandle.getUserId(this.uid));
         }
 
@@ -1982,9 +1982,7 @@ public class AppOpsService extends IAppOpsService.Stub {
             if (op != null) {
                 if (op.getMode() != mode) {
                     previousMode = op.getMode();
-                    if (!op.setMode(mode)) {
-                        return;
-                    }
+                    op.setMode(mode);
 
                     if (uidState != null) {
                         uidState.evalForegroundOps();

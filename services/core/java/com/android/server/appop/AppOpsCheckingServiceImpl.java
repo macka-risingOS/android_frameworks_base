@@ -266,7 +266,7 @@ public class AppOpsCheckingServiceImpl implements AppOpsCheckingServiceInterface
     }
 
     @Override
-    public boolean setPackageMode(String packageName, int op, @Mode int mode, @UserIdInt int userId) {
+    public void setPackageMode(String packageName, int op, @Mode int mode, @UserIdInt int userId) {
         final int defaultMode = AppOpsManager.opToDefaultMode(op);
         synchronized (mLock) {
             ArrayMap<String, SparseIntArray> packageModes = mUserPackageModes.get(userId, null);
@@ -281,20 +281,15 @@ public class AppOpsCheckingServiceImpl implements AppOpsCheckingServiceInterface
                     packageModes.put(packageName, opModes);
                     opModes.put(op, mode);
                     scheduleWriteLocked();
-                } else {
-                    return false;
                 }
             } else {
-                if (opModes.indexOfKey(op) >= 0) {
-                    if (opModes.get(op) == mode) {
-                        return false;
-                    }
-                } else if (mode == defaultMode) {
-                    return false;
+                if (opModes.indexOfKey(op) >= 0 && opModes.get(op) == mode) {
+                    return;
                 }
                 if (mode == defaultMode) {
                     opModes.delete(op);
                     if (opModes.size() <= 0) {
+                        opModes = null;
                         packageModes.remove(packageName);
                     }
                 } else {
@@ -303,7 +298,6 @@ public class AppOpsCheckingServiceImpl implements AppOpsCheckingServiceInterface
                 scheduleWriteLocked();
             }
         }
-        return true;
     }
 
     @Override
