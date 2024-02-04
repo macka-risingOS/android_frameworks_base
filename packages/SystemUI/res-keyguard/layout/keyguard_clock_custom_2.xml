@@ -137,8 +137,8 @@
             <ImageView
                 android:background="@drawable/custom_background"
                 android:clickable="false"
-                android:layout_width="70.0dip"
-                android:layout_height="fill_parent"
+                android:layout_width="@dimen/custom_clock_2_avatar_width"
+                android:layout_height="match_parent"
                 android:id="@+id/user_picture"
                 android:scaleType="centerCrop"
                 android:layout_weight="1.0"
