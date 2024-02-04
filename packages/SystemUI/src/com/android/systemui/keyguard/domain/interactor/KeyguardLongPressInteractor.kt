@@ -20,6 +20,9 @@ package com.android.systemui.keyguard.domain.interactor
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.PowerManager
+import android.os.SystemClock
+import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import androidx.annotation.VisibleForTesting
 import com.android.internal.logging.UiEvent
@@ -115,6 +118,8 @@ constructor(
     val shouldOpenSettings = _shouldOpenSettings.asStateFlow()
 
     private var delayedHideMenuJob: Job? = null
+    
+    private val powerManager = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
 
     init {
         if (isFeatureEnabled()) {
@@ -125,6 +130,21 @@ constructor(
                 .onEach { hideMenu() }
                 .launchIn(scope)
         }
+    }
+
+    /** Notifies that the user performed double tap on the lock screen. */
+    fun onDoubleTap() {
+        if (isDoubleTapEnabled()) {
+            powerManager.goToSleep(SystemClock.uptimeMillis())
+        }
+    }
+
+    private fun isDoubleTapEnabled(): Boolean {
+        return Settings.System.getInt(
+            appContext.contentResolver,
+            Settings.System.DOUBLE_TAP_SLEEP_GESTURE,
+            1
+        ) == 1
     }
 
     /** Notifies that the user has long-pressed on the lock screen. */

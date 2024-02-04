@@ -997,6 +997,10 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
                     onEmptySpaceClick();
                     return Unit.INSTANCE;
                 },
+                () -> {
+                    onEmptySpaceClick();
+                    return Unit.INSTANCE;
+                },
                 mFalsingManager);
         mActivityStarter = activityStarter;
         onFinishInflate();

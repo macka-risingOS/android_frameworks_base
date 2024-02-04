@@ -41,6 +41,7 @@ object KeyguardLongPressViewBinder {
         view: LongPressHandlingView,
         viewModel: KeyguardLongPressViewModel,
         onSingleTap: () -> Unit,
+        onDoubleTap: () -> Unit,
         falsingManager: FalsingManager,
     ) {
         view.listener =
@@ -59,6 +60,14 @@ object KeyguardLongPressViewBinder {
                     }
 
                     onSingleTap()
+                }
+                
+                override fun onDoubleTapDetected(view: View) {
+                    if (falsingManager.isFalseTap(FalsingManager.LOW_PENALTY)) {
+                        return
+                    }
+
+                    viewModel.onDoubleTap()
                 }
             }
 

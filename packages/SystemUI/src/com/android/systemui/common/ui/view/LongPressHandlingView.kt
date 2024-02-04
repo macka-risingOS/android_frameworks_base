@@ -20,6 +20,7 @@ package com.android.systemui.common.ui.view
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
+import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import com.android.systemui.shade.TouchLogger
@@ -51,6 +52,9 @@ class LongPressHandlingView(
 
         /** Notifies that the gesture was too short for a long press, it is actually a click. */
         fun onSingleTapDetected(view: View) = Unit
+        
+        /** Notifies that a double-tap has been detected by the given view. */
+        fun onDoubleTapDetected(view: View) = Unit
     }
 
     var listener: Listener? = null
@@ -79,6 +83,15 @@ class LongPressHandlingView(
             onSingleTapDetected = { listener?.onSingleTapDetected(this@LongPressHandlingView) },
         )
     }
+    
+    private val gestureDetector: GestureDetector by lazy {
+        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                listener?.onDoubleTapDetected(this@LongPressHandlingView)
+                return true
+            }
+        })
+    }
 
     fun setLongPressHandlingEnabled(isEnabled: Boolean) {
         interactionHandler.isLongPressHandlingEnabled = isEnabled
@@ -90,6 +103,7 @@ class LongPressHandlingView(
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
+        gestureDetector.onTouchEvent(event)
         return interactionHandler.onTouchEvent(event?.toModel())
     }
 }

@@ -37,6 +37,11 @@ constructor(
     fun onLongPress() {
         interactor.onLongPress()
     }
+    
+    /** Notifies that the user performed double tap on the lock screen. */
+    fun onDoubleTap() {
+        interactor.onDoubleTap()
+    }
 
     /**
      * Notifies that some input gesture has started somewhere outside of the lock screen settings
