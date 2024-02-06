@@ -122,7 +122,6 @@ import static android.os.Process.myPid;
 import static android.os.Process.myUid;
 import static android.os.Process.readProcFile;
 import static android.os.Process.sendSignal;
-import static android.os.Process.putProc;
 import static android.os.Process.setThreadPriority;
 import static android.os.Process.setThreadScheduler;
 import static android.os.Process.setUidPrio;
@@ -4481,7 +4480,8 @@ public class ActivityManagerService extends IActivityManager.Stub
         return didSomething;
     }
 
-    final void updateCgroupPrioLocked(int uid, int pid) {
+    final void updateCgroupPrioLocked(int pid) {
+        int uid = Process.uidFromPid(pid);
         if ((!UserHandle.isApp(uid) || !UserHandle.isIsolated(uid)) && UserHandle.isCore(uid)) {
             return;
         }
@@ -4508,7 +4508,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         if (isAppForeground(uid)) {
             cpuShares = FG_CPU_SHARES;
         }
-        Process.setUidPrio(uid, cpuShares);
+        Process.setUidPrio(pid, cpuShares);
     }
 
     @GuardedBy("this")
@@ -4669,8 +4669,9 @@ public class ActivityManagerService extends IActivityManager.Stub
             handleAppDiedLocked(app, pid, true, true, false /* fromBinderDied */);
         }
 
-        if ((UserHandle.isApp(app.uid) || UserHandle.isIsolated(app.uid)) && !UserHandle.isCore(app.uid)) {
-            Process.putProc(app.uid, app.getPid());
+        int uid = Process.uidFromPid(app.getPid());
+        if ((UserHandle.isApp(uid) || UserHandle.isIsolated(uid)) && !UserHandle.isCore(uid)) {
+            Process.putProc(app.getPid());
         }
 
         // Tell the process all about itself.
@@ -7879,9 +7880,9 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     public static boolean scheduleAsRegularPriority(int tid, int prio, boolean suppressLogs) {
         try {
-            int uid = Process.getUidForPid(tid);
+            int uid = Process.uidFromPid(tid);
             if ((UserHandle.isApp(uid) || UserHandle.isIsolated(uid)) && !UserHandle.isCore(uid)) {
-                Process.putProc(uid, tid);
+                Process.putProc(tid);
             }
             Process.setThreadScheduler(tid, Process.SCHED_OTHER, prio);
             return true;
@@ -7907,7 +7908,7 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     public static boolean scheduleAsFifoPriority(int tid, int prio, boolean suppressLogs) {
         try {
-            int uid = Process.getUidForPid(tid);
+            int uid = Process.uidFromPid(tid);
             if ((UserHandle.isApp(uid) || UserHandle.isIsolated(uid)) && !UserHandle.isCore(uid)) {
                 Process.putThreadInRoot(tid);
             }
