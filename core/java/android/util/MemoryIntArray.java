@@ -58,6 +58,7 @@ public final class MemoryIntArray implements Parcelable, Closeable {
 
     private final boolean mIsOwner;
     private final long mMemoryAddr;
+    private final int mSize;
     private int mFd = -1;
 
     /**
@@ -75,6 +76,7 @@ public final class MemoryIntArray implements Parcelable, Closeable {
         final String name = UUID.randomUUID().toString();
         mFd = nativeCreate(name, size);
         mMemoryAddr = nativeOpen(mFd, mIsOwner);
+        mSize = size;
         mCloseGuard.open("MemoryIntArray.close");
     }
 
@@ -86,6 +88,7 @@ public final class MemoryIntArray implements Parcelable, Closeable {
         }
         mFd = pfd.detachFd();
         mMemoryAddr = nativeOpen(mFd, mIsOwner);
+        mSize = nativeSize(mFd);
         mCloseGuard.open("MemoryIntArray.close");
     }
 
@@ -127,13 +130,11 @@ public final class MemoryIntArray implements Parcelable, Closeable {
     }
 
     /**
-     * Gets the array size.
-     *
-     * @throws IOException If an error occurs while accessing the shared memory.
+     * @return Gets the array size.
      */
-    public int size() throws IOException {
+    public int size() {
         enforceNotClosed();
-        return nativeSize(mFd);
+        return mSize;
     }
 
     /**
@@ -211,10 +212,9 @@ public final class MemoryIntArray implements Parcelable, Closeable {
     }
 
     private void enforceValidIndex(int index) throws IOException {
-        final int size = size();
-        if (index < 0 || index > size - 1) {
+        if (index < 0 || index > mSize - 1) {
             throw new IndexOutOfBoundsException(
-                    index + " not between 0 and " + (size - 1));
+                    index + " not between 0 and " + (mSize - 1));
         }
     }
 
