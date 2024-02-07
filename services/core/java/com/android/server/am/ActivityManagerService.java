@@ -4669,9 +4669,8 @@ public class ActivityManagerService extends IActivityManager.Stub
             handleAppDiedLocked(app, pid, true, true, false /* fromBinderDied */);
         }
 
-        int uid = Process.uidFromPid(app.getPid());
-        if ((UserHandle.isApp(uid) || UserHandle.isIsolated(uid)) && !UserHandle.isCore(uid)) {
-            Process.putProc(app.getPid());
+        if (Process.isAppRegular(pid)) {
+            Process.putProc(pid);
         }
 
         // Tell the process all about itself.
@@ -7880,8 +7879,7 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     public static boolean scheduleAsRegularPriority(int tid, int prio, boolean suppressLogs) {
         try {
-            int uid = Process.uidFromPid(tid);
-            if ((UserHandle.isApp(uid) || UserHandle.isIsolated(uid)) && !UserHandle.isCore(uid)) {
+            if (Process.isAppRegular(tid)) {
                 Process.putProc(tid);
             }
             Process.setThreadScheduler(tid, Process.SCHED_OTHER, prio);
@@ -7908,8 +7906,7 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     public static boolean scheduleAsFifoPriority(int tid, int prio, boolean suppressLogs) {
         try {
-            int uid = Process.uidFromPid(tid);
-            if ((UserHandle.isApp(uid) || UserHandle.isIsolated(uid)) && !UserHandle.isCore(uid)) {
+            if (Process.isAppRegular(tid)) {
                 Process.putThreadInRoot(tid);
             }
             Process.setThreadScheduler(tid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, prio);
@@ -7951,9 +7948,9 @@ public class ActivityManagerService extends IActivityManager.Stub
                 // promote to FIFO now
                 if (proc.mState.getCurrentSchedulingGroup() == ProcessList.SCHED_GROUP_TOP_APP) {
                     if (DEBUG_OOM_ADJ) Slog.d("UI_FIFO", "Promoting " + tid + "out of band");
-                    // please refer to CL b6aa7c416c6d60fc099d157c3981cc59a5478081 about
-                    // why we can't boost to top-app priority after promoting to FIFO
-                    scheduleAsFifoPriority(proc.getRenderThreadTid(), 1, /*noLogs*/true);
+                    // Always boost the main/render thread for regular apps
+                    final int rtid = proc.getRenderThreadTid();
+                    scheduleAsFifoPriority(rtid, Process.isAppRegular(rtid) ? THREAD_PRIORITY_TOP_APP_BOOST : 1, /*noLogs*/true);
                 }
             }
         }
