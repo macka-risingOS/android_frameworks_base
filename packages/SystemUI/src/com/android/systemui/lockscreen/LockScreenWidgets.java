@@ -358,7 +358,9 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         if (mFlashlightController != null) {
             mFlashlightController.removeCallback(mFlashlightCallback);
         }
-        if (!mMainLockscreenWidgetsList.contains("weather") 
+        if (mMainLockscreenWidgetsList != null 
+            && !mMainLockscreenWidgetsList.contains("weather") 
+        	&& mSecondaryLockscreenWidgetsList != null 
         	&& !mSecondaryLockscreenWidgetsList.contains("weather")) {
         	disableWeatherUpdates();
         }
