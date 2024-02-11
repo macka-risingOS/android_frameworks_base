@@ -578,12 +578,34 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
             mAudioManager.dispatchMediaKeyEvent(pauseDownEvent);
             mAudioManager.dispatchMediaKeyEvent(pauseUpEvent);
         } else {
-            final KeyEvent playDownEvent = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY);
-            final KeyEvent playUpEvent = new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY);
-            mAudioManager.dispatchMediaKeyEvent(playDownEvent);
-            mAudioManager.dispatchMediaKeyEvent(playUpEvent);
+            launchMusicPlayerApp();
+            postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    final KeyEvent playDownEvent = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY);
+                    final KeyEvent playUpEvent = new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY);
+                    mAudioManager.dispatchMediaKeyEvent(playDownEvent);
+                    mAudioManager.dispatchMediaKeyEvent(playUpEvent);
+                }
+            }, 500);
         }
         updateMediaPlaybackState();
+    }
+
+    private void launchMusicPlayerApp() {
+        PackageManager packageManager = mContext.getPackageManager();
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.addCategory(Intent.CATEGORY_APP_MUSIC);
+        List<ResolveInfo> musicApps = packageManager.queryIntentActivities(intent, 0);
+        if (!musicApps.isEmpty()) {
+            ResolveInfo musicApp = musicApps.get(0);
+            String packageName = musicApp.activityInfo.packageName;
+            Intent launchIntent = packageManager.getLaunchIntentForPackage(packageName);
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivity(launchIntent);
+            }
+        }
     }
 
     private boolean isMusicActive() {
