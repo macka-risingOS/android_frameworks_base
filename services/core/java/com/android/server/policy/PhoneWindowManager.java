@@ -3749,7 +3749,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                             }
                             performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, false,
                                     "Assist - Long Press");
-                            performKeyAction(mAssistLongPressAction, event);
+                            performKeyAction(mAssistLongPressAction, event,
+                                    AssistUtils.INVOCATION_TYPE_ASSIST_BUTTON);
                             mAssistPressed = false;
                         }
                     }
@@ -3760,7 +3761,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         }
                         mAssistPressed = false;
                         if (!canceled) {
-                            performKeyAction(mAssistPressAction, event);
+                            performKeyAction(mAssistPressAction, event,
+                                    AssistUtils.INVOCATION_TYPE_ASSIST_BUTTON);
                         }
                     }
                 }
