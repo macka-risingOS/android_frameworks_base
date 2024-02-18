@@ -81,6 +81,8 @@ import com.android.systemui.util.CarrierConfigTracker.CarrierConfigChangedListen
 import com.android.systemui.util.CarrierConfigTracker.DefaultDataSubscriptionChangedListener;
 import com.android.systemui.util.settings.SecureSettings;
 
+import lineageos.providers.LineageSettings;
+
 import kotlin.Unit;
 
 import java.io.PrintWriter;
@@ -100,6 +102,19 @@ import java.util.concurrent.Executor;
 public class CollapsedStatusBarFragment extends Fragment implements CommandQueue.Callbacks,
         StatusBarStateController.StateListener,
         SystemStatusAnimationCallback, Dumpable, TunerService.Tunable {
+
+    public static final String STATUS_BAR_CLOCK_SECONDS =
+            "system:" + Settings.System.STATUS_BAR_CLOCK_SECONDS;
+    private static final String STATUS_BAR_AM_PM =
+            "lineagesystem:" + LineageSettings.System.STATUS_BAR_AM_PM;
+    public static final String STATUS_BAR_CLOCK_DATE_DISPLAY =
+            "system:" + Settings.System.STATUS_BAR_CLOCK_DATE_DISPLAY;
+    public static final String STATUS_BAR_CLOCK_DATE_STYLE =
+            "system:" + Settings.System.STATUS_BAR_CLOCK_DATE_STYLE;
+    public static final String STATUS_BAR_CLOCK_DATE_POSITION =
+            "system:" + Settings.System.STATUS_BAR_CLOCK_DATE_POSITION;
+    public static final String STATUS_BAR_CLOCK_DATE_FORMAT =
+            "system:" + Settings.System.STATUS_BAR_CLOCK_DATE_FORMAT;
 
     private static final String STATUSBAR_CLOCK_CHIP =
             "system:" + Settings.System.STATUSBAR_CLOCK_CHIP;
@@ -360,7 +375,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
                 mStatusBar, mCollapsedStatusBarViewModel, mStatusBarVisibilityChangeListener);
         mClockPaddingStart = mClockView.getPaddingStart();
         mClockPaddingEnd = mClockView.getPaddingEnd();
-        applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
+        updateClockView((TextView) mClockView, mShowSBClockBg > 0);
     }
 
     @Override
@@ -394,7 +409,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         }
 
         mMainExecutor.execute(() -> mDarkIconManager.setBlockList(mBlockedIcons));
-        applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
+        updateClockView((TextView) mClockView, mShowSBClockBg > 0);
     }
 
     @VisibleForTesting
@@ -418,7 +433,14 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         initOngoingCallChip();
         mAnimationScheduler.addCallback(this);
 
-        Dependency.get(TunerService.class).addTunable(this, STATUSBAR_CLOCK_CHIP);
+        Dependency.get(TunerService.class).addTunable(this,
+                STATUSBAR_CLOCK_CHIP,
+                STATUS_BAR_CLOCK_SECONDS,
+                STATUS_BAR_AM_PM,
+                STATUS_BAR_CLOCK_DATE_DISPLAY,
+                STATUS_BAR_CLOCK_DATE_STYLE,
+                STATUS_BAR_CLOCK_DATE_POSITION,
+                STATUS_BAR_CLOCK_DATE_FORMAT);
 
         mSecureSettings.registerContentObserverForUser(
                 Settings.Secure.STATUS_BAR_SHOW_VIBRATE_ICON,
@@ -463,14 +485,22 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
             case STATUSBAR_CLOCK_CHIP:
                 mShowSBClockBg = 
                         TunerService.parseInteger(newValue, 0);
-                applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
+                updateClockView((TextView) mClockView, mShowSBClockBg > 0);
+                break;
+            case STATUS_BAR_CLOCK_SECONDS:
+            case STATUS_BAR_AM_PM:
+            case STATUS_BAR_CLOCK_DATE_DISPLAY:
+            case STATUS_BAR_CLOCK_DATE_STYLE:
+            case STATUS_BAR_CLOCK_DATE_POSITION:
+            case STATUS_BAR_CLOCK_DATE_FORMAT:
+                updateClockView((TextView) mClockView, mShowSBClockBg > 0);
                 break;
             default:
                 break;
          }
     }
 
-    private void applyChipBg(TextView v, boolean enable) {
+    private void updateClockView(TextView v, boolean enable) {
         if (v == null) return;
         if (enable) {
             String chipStyleUri = "sb_date_bg" + String.valueOf(mShowSBClockBg);
@@ -575,7 +605,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
                 hideClock(animate);
             }
         }
-        applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
+        updateClockView((TextView) mClockView, mShowSBClockBg > 0);
     }
 
     private StatusBarVisibilityModel calculateInternalModel(
@@ -636,7 +666,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
             hideOngoingCallChip(animate);
         }
         mOngoingCallController.notifyChipVisibilityChanged(showOngoingCallChip);
-        applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
+        updateClockView((TextView) mClockView, mShowSBClockBg > 0);
     }
 
     private boolean shouldHideStatusBar() {
