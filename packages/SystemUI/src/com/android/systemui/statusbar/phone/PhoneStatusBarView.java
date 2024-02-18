@@ -382,6 +382,9 @@ public class PhoneStatusBarView extends FrameLayout implements Callbacks {
     }
 
     public ClockController getClockController() {
+        if (mClockController == null) {
+            mClockController = new ClockController(getContext(), this);
+        }
         return mClockController;
     }
 

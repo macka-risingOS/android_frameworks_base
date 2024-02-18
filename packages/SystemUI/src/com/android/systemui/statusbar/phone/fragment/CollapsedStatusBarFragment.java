@@ -159,6 +159,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
     private int mSignalClusterEndPadding = 0;
 
     private ClockController mClockController;
+    private View mClockView;
 
     private List<String> mBlockedIcons = new ArrayList<>();
     private Map<Startable, Startable.State> mStartableStates = new ArrayMap<>();
@@ -335,6 +336,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         mEndSideAlphaController = new MultiSourceMinAlphaController(mEndSideContent);
         mBatteryBar = mStatusBar.findViewById(R.id.battery_bar);
         mClockController = mStatusBar.getClockController();
+        mClockView = mClockController != null ? mClockController.getClock(mStatusBar) : mStatusBar.findViewById(R.id.clock);
         mSignalClusterEndPadding = getResources().getDimensionPixelSize(R.dimen.signal_cluster_battery_padding);
         mStatusIcons = mStatusBar.findViewById(R.id.statusIcons);
         int batteryStyle = Settings.System.getInt(getContext().getContentResolver(),
@@ -356,9 +358,9 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
 
         mCollapsedStatusBarViewBinder.bind(
                 mStatusBar, mCollapsedStatusBarViewModel, mStatusBarVisibilityChangeListener);
-        mClockPaddingStart = mClockController.getClock().getPaddingStart();
-        mClockPaddingEnd = mClockController.getClock().getPaddingEnd();
-        applyChipBg((TextView) mClockController.getClock(), mShowSBClockBg > 0);
+        mClockPaddingStart = mClockView.getPaddingStart();
+        mClockPaddingEnd = mClockView.getPaddingEnd();
+        applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
     }
 
     @Override
@@ -392,7 +394,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         }
 
         mMainExecutor.execute(() -> mDarkIconManager.setBlockList(mBlockedIcons));
-        applyChipBg((TextView) mClockController.getClock(), mShowSBClockBg > 0);
+        applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
     }
 
     @VisibleForTesting
@@ -461,7 +463,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
             case STATUSBAR_CLOCK_CHIP:
                 mShowSBClockBg = 
                         TunerService.parseInteger(newValue, 0);
-                applyChipBg((TextView) mClockController.getClock(), mShowSBClockBg > 0);
+                applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
                 break;
             default:
                 break;
@@ -563,14 +565,14 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         // The clock may have already been hidden, but we might want to shift its
         // visibility to GONE from INVISIBLE or vice versa
         if (newModel.getShowClock() != previousModel.getShowClock()
-                || mClockController.getClock().getVisibility() != clockHiddenMode()) {
+                || mClockView.getVisibility() != clockHiddenMode()) {
             if (newModel.getShowClock()) {
                 showClock(animate);
             } else {
                 hideClock(animate);
             }
         }
-        applyChipBg((TextView) mClockController.getClock(), mShowSBClockBg > 0);
+        applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
     }
 
     private StatusBarVisibilityModel calculateInternalModel(
@@ -583,8 +585,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
                 && shouldHideStatusBar()
                 && !(mStatusBarStateController.getState() == StatusBarState.KEYGUARD
                         && headsUpVisible)) {
-            View clockView = mClockController.getClock();
-            boolean isRightClock = clockView.getId() == R.id.clock_right;
+            boolean isRightClock = mClockView.getId() == R.id.clock_right;
             // Hide everything
             return new StatusBarVisibilityModel(
                     /* showClock= */ isRightClock,
@@ -630,7 +631,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
             hideOngoingCallChip(animate);
         }
         mOngoingCallController.notifyChipVisibilityChanged(showOngoingCallChip);
-        applyChipBg((TextView) mClockController.getClock(), mShowSBClockBg > 0);
+        applyChipBg((TextView) mClockView, mShowSBClockBg > 0);
     }
 
     private boolean shouldHideStatusBar() {
@@ -715,11 +716,11 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
     }
 
     private void hideClock(boolean animate) {
-        animateHiddenState(mClockController.getClock(), clockHiddenMode(), animate);
+        animateHiddenState(mClockView, clockHiddenMode(), animate);
     }
 
     private void showClock(boolean animate) {
-        animateShow(mClockController.getClock(), animate);
+        animateShow(mClockView, animate);
     }
 
     /** Hides the ongoing call chip. */
@@ -739,7 +740,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
     private int clockHiddenMode() {
         if (!mShadeExpansionStateManager.isClosed() && !mKeyguardStateController.isShowing()
                 && !mStatusBarStateController.isDozing()
-                && mClockController.getClock().shouldBeVisible()) {
+                && mClockController.getClock(mStatusBar).shouldBeVisible()) {
             return View.INVISIBLE;
         }
         return View.GONE;

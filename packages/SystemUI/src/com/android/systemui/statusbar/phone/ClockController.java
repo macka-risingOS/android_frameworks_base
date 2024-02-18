@@ -89,6 +89,18 @@ public class ClockController {
                 return mLeftClock;
         }
     }
+    
+    public Clock getClock(View statusBar) {
+        switch (mClockPosition) {
+            case CLOCK_POSITION_RIGHT:
+                return statusBar.findViewById(R.id.clock_right);
+            case CLOCK_POSITION_CENTER:
+                return statusBar.findViewById(R.id.clock_center);
+            case CLOCK_POSITION_LEFT:
+            default:
+                return statusBar.findViewById(R.id.clock);
+        }
+    }
 
     private void updateActiveClock() {
         mContext.getMainExecutor().execute(() -> {
