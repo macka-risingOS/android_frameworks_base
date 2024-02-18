@@ -533,7 +533,7 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
     private void setUpWidgetResources(ImageView iv, ExtendedFloatingActionButton efab, View.OnClickListener cl, int drawableRes, int stringRes){
         if (efab != null) {
             efab.setOnClickListener(cl);
-            efab.setIcon(mContext.getResources().getDrawable(drawableRes));
+            efab.setIcon(mContext.getDrawable(drawableRes));
             efab.setText(mContext.getResources().getString(stringRes));
         }
         if (iv != null) {
@@ -623,7 +623,7 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
         }
         if (mediaButtonFab != null) {
             final boolean canShowTrackTitle = isPlaying || mMetadata.trackTitle != null;
-            mediaButtonFab.setIcon(mContext.getResources().getDrawable(isPlaying ? R.drawable.ic_media_pause : R.drawable.ic_media_play));
+            mediaButtonFab.setIcon(mContext.getDrawable(isPlaying ? R.drawable.ic_media_pause : R.drawable.ic_media_play));
             mediaButtonFab.setText(canShowTrackTitle ? mMetadata.trackTitle : mContext.getResources().getString(R.string.controls_media_button_play));
             setButtonActiveState(null, mediaButtonFab, isPlaying);
         }
@@ -676,7 +676,7 @@ public class LockScreenWidgets extends LinearLayout implements TunerService.Tuna
                     setButtonActiveState(torchButton, null, isFlashOn);
                 }
                 if (torchButtonFab != null) {
-                    torchButtonFab.setIcon(mContext.getResources().getDrawable(isFlashOn ? R.drawable.ic_flashlight_on : R.drawable.ic_flashlight_off));
+                    torchButtonFab.setIcon(mContext.getDrawable(isFlashOn ? R.drawable.ic_flashlight_on : R.drawable.ic_flashlight_off));
                     setButtonActiveState(null, torchButtonFab, isFlashOn);
                 }
             }
