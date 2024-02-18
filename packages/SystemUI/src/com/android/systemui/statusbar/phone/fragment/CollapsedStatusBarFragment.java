@@ -515,7 +515,13 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         } else {
             v.setBackgroundResource(0);
             v.setPaddingRelative(mClockPaddingStart, 0, mClockPaddingEnd, 0);
-            v.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+            if (v.getId() == R.id.clock) {
+                v.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+            } else if (v.getId() == R.id.clock_center) {
+                v.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+            } else {
+                v.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_END);
+            }
         }
     }
 
@@ -592,7 +598,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
             updateNotificationIconAreaAndCallChip(animate);
         }
 
-        if (mClockController.getClock() == null)
+        if (mClockView == null)
             return;
 
         // The clock may have already been hidden, but we might want to shift its
@@ -773,7 +779,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
      * don't set the clock GONE otherwise it'll mess up the animation.
      */
     private int clockHiddenMode() {
-        if (mClockController.getClock() == null)
+        if (mClockView == null)
             return View.GONE;
 
         if (!mShadeExpansionStateManager.isClosed() && !mKeyguardStateController.isShowing()
