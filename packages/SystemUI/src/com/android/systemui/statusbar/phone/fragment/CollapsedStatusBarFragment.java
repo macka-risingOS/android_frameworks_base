@@ -103,6 +103,9 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         StatusBarStateController.StateListener,
         SystemStatusAnimationCallback, Dumpable, TunerService.Tunable {
 
+    private static final String STATUS_BAR_CLOCK =
+            "lineagesystem:" + LineageSettings.System.STATUS_BAR_CLOCK;
+
     public static final String STATUS_BAR_CLOCK_SECONDS =
             "system:" + Settings.System.STATUS_BAR_CLOCK_SECONDS;
     private static final String STATUS_BAR_AM_PM =
@@ -435,6 +438,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
 
         Dependency.get(TunerService.class).addTunable(this,
                 STATUSBAR_CLOCK_CHIP,
+                STATUS_BAR_CLOCK,
                 STATUS_BAR_CLOCK_SECONDS,
                 STATUS_BAR_AM_PM,
                 STATUS_BAR_CLOCK_DATE_DISPLAY,
@@ -486,6 +490,9 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
                 mShowSBClockBg = 
                         TunerService.parseInteger(newValue, 0);
                 updateClockView((TextView) mClockView, mShowSBClockBg > 0);
+                break;
+            case STATUS_BAR_CLOCK:
+                mClockView = mClockController.getClock(mStatusBar);
                 break;
             case STATUS_BAR_CLOCK_SECONDS:
             case STATUS_BAR_AM_PM:
