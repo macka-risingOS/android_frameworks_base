@@ -180,8 +180,6 @@ public class PropImitationHooks {
     private static final Set<String> EXCLUDED_PACKAGES = new HashSet<>(Arrays.asList(
             PACKAGE_GPHOTOS, 
             PACKAGE_ARCORE,
-            PACKAGE_GMS,
-            PACKAGE_FINSKY,
             PACKAGE_SETUPWIZARD
     ));
 
@@ -219,13 +217,9 @@ public class PropImitationHooks {
         sIsSetupWizard = packageName.equals(PACKAGE_SETUPWIZARD);
         final boolean sIsExcludedPackage = EXCLUDED_PACKAGES.contains(packageName);
         if (sIsGoogle && !sIsExcludedPackage) {
-            if (shouldTryToSpoofDevice()) {
-                dlog("Spoofing build for Google Services");
-                setPropValue("TIME", System.currentTimeMillis());
-                sMainSpoofProps.forEach((k, v) -> setPropValue(k, v));
-            } else {
-                Process.killProcess(Process.myPid());
-            }
+            dlog("Spoofing build for Google Services");
+            setPropValue("TIME", System.currentTimeMillis());
+            sMainSpoofProps.forEach((k, v) -> setPropValue(k, v));
         } else {
             switch (packageName) {
                 case PACKAGE_ARCORE:
@@ -273,41 +267,6 @@ public class PropImitationHooks {
         }
     }
 
-    private static boolean shouldTryToSpoofDevice() {
-        final boolean[] shouldCertify = {true};
-        boolean was = isGmsAddAccountActivityOnTop();
-        String reason = "GmsAddAccountActivityOnTop";
-        Log.d(TAG, "Skip spoofing build for GMS, because " + reason + "!");
-        TaskStackListener taskStackListener = new TaskStackListener() {
-            @Override
-            public void onTaskStackChanged() {
-                boolean isNow = isGmsAddAccountActivityOnTop();
-                if (isNow ^ was) {
-                    Log.d(TAG, String.format("%s changed: isNow=%b, was=%b, killing myself!", reason, isNow, was));
-                    shouldCertify[0] = false;
-                }
-            }
-        };
-        try {
-            ActivityTaskManager.getService().registerTaskStackListener(taskStackListener);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to register task stack listener!", e);
-        }
-        return shouldCertify[0];
-    }
-
-    private static boolean isGmsAddAccountActivityOnTop() {
-        try {
-            ActivityTaskManager.RootTaskInfo focusedTask =
-                    ActivityTaskManager.getService().getFocusedRootTaskInfo();
-            return focusedTask != null && focusedTask.topActivity != null
-                    && focusedTask.topActivity.equals(GMS_ADD_ACCOUNT_ACTIVITY);
-        } catch (Exception e) {
-            Log.e(TAG, "Unable to get top activity!", e);
-        }
-        return false;
-    }
-
     private static boolean isDeviceTablet(Context context) {
         if (context == null) {
             return false;
@@ -327,43 +286,33 @@ public class PropImitationHooks {
 
     private static void setPropValue(String key, Object value) {
         try {
-            dlog("Setting prop " + key + " to " + value.toString());
-            Field field = Build.class.getDeclaredField(key);
-            field.setAccessible(true);
-            field.set(null, value);
-            field.setAccessible(false);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
+            Field field;
+            Class<?> targetClass;
+            try {
+                targetClass = Build.class;
+                field = targetClass.getDeclaredField(key);
+            } catch (NoSuchFieldException e) {
+                targetClass = Build.VERSION.class;
+                field = targetClass.getDeclaredField(key);
+            }
+            if (field != null) {
+                field.setAccessible(true);
+                Class<?> fieldType = field.getType();
+                if (fieldType == int.class || fieldType == Integer.class) {
+                    if (value instanceof Integer) {
+                        field.set(null, value);
+                    } else if (value instanceof String) {
+                        field.set(null, Integer.parseInt((String) value));
+                    }
+                } else if (fieldType == String.class) {
+                    field.set(null, String.valueOf(value));
+                }
+                field.setAccessible(false);
+            }
+        } catch (IllegalAccessException | NoSuchFieldException e) {
             Log.e(TAG, "Failed to set prop " + key, e);
-        }
-    }
-
-    private static void setVersionField(String key, Integer value) {
-        try {
-            // Unlock
-            Field field = Build.VERSION.class.getDeclaredField(key);
-            field.setAccessible(true);
-            // Edit
-            field.set(null, value);
-            // Lock
-            field.setAccessible(false);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            Log.e(TAG, "Failed to spoof Build." + key, e);
-        }
-    }
-
-    private static void setVersionFieldString(String key, String value) {
-        try {
-            // Unlock
-            Field field = Build.VERSION.class.getDeclaredField(key);
-            field.setAccessible(true);
-
-            // Edit
-            field.set(null, value);
-
-            // Lock
-            field.setAccessible(false);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            Log.e(TAG, "Failed to spoof Build." + key, e);
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Failed to parse value for field " + key, e);
         }
     }
 
@@ -373,10 +322,6 @@ public class PropImitationHooks {
     }
 
     public static void onEngineGetCertificateChain() {
-        // Check stack for SafetyNet or Play Integrity
-        if (!shouldTryToSpoofDevice() || sIsSetupWizard) {
-            Process.killProcess(Process.myPid());
-        }
         if ((isCallerSafetyNet() || sIsFinsky)) {
             dlog("Blocked key attestation sIsGms=" + sIsGms + " sIsFinsky=" + sIsFinsky);
             throw new UnsupportedOperationException();
