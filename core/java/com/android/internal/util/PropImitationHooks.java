@@ -20,7 +20,7 @@
 
 package com.android.internal.util;
 
-import android.app.ActivityTaskManager;
+import android.app.ActivityManager;
 import android.app.Application;
 import android.app.TaskStackListener;
 import android.content.Context;
@@ -40,6 +40,7 @@ import com.android.internal.R;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.List;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -51,7 +52,7 @@ import java.util.regex.Matcher;
 public class PropImitationHooks {
 
     private static final String TAG = "PropImitationHooks";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = SystemProperties.getBoolean("persist.sys.pihooks.debug", false);
     
     private static final String PRODUCT_DEVICE = "ro.product.device";
 
@@ -120,6 +121,16 @@ public class PropImitationHooks {
         return props;
     }
 
+    private static String getBuildID(String fingerprint) {
+        Pattern pattern = Pattern.compile("([A-Za-z0-9]+\\.\\d+\\.\\d+\\.\\w+)");
+        Matcher matcher = pattern.matcher(fingerprint);
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return "";
+    }
+
     private static String getDeviceName(String fingerprint) {
         String[] parts = fingerprint.split("/");
         if (parts.length >= 2) {
@@ -176,47 +187,51 @@ public class PropImitationHooks {
             "com.dts.freefiremax",
             "com.dts.freefireth"
     ));
-    
+
     private static final Set<String> EXCLUDED_PACKAGES = new HashSet<>(Arrays.asList(
-            PACKAGE_GPHOTOS, 
             PACKAGE_ARCORE,
-            PACKAGE_SETUPWIZARD
+            PACKAGE_GCAM,
+            PACKAGE_GPHOTOS
     ));
 
-    private static String getBuildID(String fingerprint) {
-        Pattern pattern = Pattern.compile("([A-Za-z0-9]+\\.\\d+\\.\\d+\\.\\w+)");
-        Matcher matcher = pattern.matcher(fingerprint);
-
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return "";
-    }
-
-    private static volatile boolean sIsGms, sIsFinsky, sIsSetupWizard, sIsGoogle;
+    private static volatile boolean sIsGms, sIsGmsUi, sIsGmsPersist, sIsFinsky, sisGoogleApp, sIsGoogleProcess;
     private static volatile String sProcessName;
 
-    public static void setProps(Application app) {
-        if (app == null) {
-            return;
+    public static void setProps(Context appContext) {
+        if (appContext == null) return;
+        final String packageName = appContext.getPackageName();
+        if (packageName == null) return;
+        ActivityManager manager = (ActivityManager) appContext.getSystemService(Context.ACTIVITY_SERVICE);
+        if (manager == null) return;
+        List<ActivityManager.RunningAppProcessInfo> runningProcesses = null;
+        try {
+            runningProcesses = manager.getRunningAppProcesses();
+        } catch (Exception e) {
+            runningProcesses = null;
         }
-        final String packageName = app.getPackageName();
-        final String processName = app.getProcessName();
-        Context appContext = app.getApplicationContext();
-        if (packageName == null || processName == null || appContext == null) {
-            return;
+        if (runningProcesses == null) return;
+        String processName = null;
+        for (ActivityManager.RunningAppProcessInfo processInfo : runningProcesses) {
+            if (processInfo.pid == android.os.Process.myPid()) {
+                processName = processInfo.processName;
+                break;
+            }
         }
+        if (processName == null) return;
         final boolean sIsTablet = isDeviceTablet(appContext);
-        final String sMainSpoofDevice = sIsTablet ? sMainModelTablet : sMainModel;
-        final String sMainFP = sIsTablet ? sMainFpTablet : sMainModel;
-        sMainSpoofProps = createGoogleSpoofProps(sMainSpoofDevice, sMainFP);
+        final String sMainModelSpoof = sIsTablet ? sMainModelTablet : sMainModel;
+        final String sMainFpSpoof = sIsTablet ? sMainFpTablet : sMainFP;
+        sMainSpoofProps = createGoogleSpoofProps(sMainModelSpoof, sMainFpSpoof);
         sProcessName = processName;
-        sIsGoogle = packageName.toLowerCase().contains("google") || processName.toLowerCase().contains("google");
         sIsGms = packageName.equals(PACKAGE_GMS) && processName.equals(PROCESS_GMS_UNSTABLE);
+        sIsGmsUi = packageName.equals(PACKAGE_GMS) && processName.equals(PROCESS_GMS_UI);
+        sIsGmsPersist = packageName.equals(PACKAGE_GMS) && processName.equals(PROCESS_GMS_PERSISTENT);
         sIsFinsky = packageName.equals(PACKAGE_FINSKY);
-        sIsSetupWizard = packageName.equals(PACKAGE_SETUPWIZARD);
-        final boolean sIsExcludedPackage = EXCLUDED_PACKAGES.contains(packageName);
-        if (sIsGoogle && !sIsExcludedPackage) {
+        sisGoogleApp = packageName.toLowerCase().contains("google");
+        sIsGoogleProcess = processName.toLowerCase().contains("google");
+        if ((sisGoogleApp || sIsGoogleProcess)
+            && !EXCLUDED_PACKAGES.contains(packageName) 
+            && (!sIsGms || !sIsGmsPersist || !sIsGmsUi)) {
             dlog("Spoofing build for Google Services");
             setPropValue("TIME", System.currentTimeMillis());
             sMainSpoofProps.forEach((k, v) -> setPropValue(k, v));
@@ -286,6 +301,11 @@ public class PropImitationHooks {
 
     private static void setPropValue(String key, Object value) {
         try {
+            if (value == null || (value instanceof String && ((String) value).isEmpty())) {
+                dlog(TAG + " Skipping setting empty value for key: " + key);
+                return;
+            }
+            dlog(TAG + " Setting property for key: " + key + ", value: " + value.toString());
             Field field;
             Class<?> targetClass;
             try {
@@ -302,7 +322,9 @@ public class PropImitationHooks {
                     if (value instanceof Integer) {
                         field.set(null, value);
                     } else if (value instanceof String) {
-                        field.set(null, Integer.parseInt((String) value));
+                        int convertedValue = Integer.parseInt((String) value);
+                        field.set(null, convertedValue);
+                        dlog(TAG + " Converted value for key " + key + ": " + convertedValue);
                     }
                 } else if (fieldType == String.class) {
                     field.set(null, String.valueOf(value));
@@ -310,9 +332,9 @@ public class PropImitationHooks {
                 field.setAccessible(false);
             }
         } catch (IllegalAccessException | NoSuchFieldException e) {
-            Log.e(TAG, "Failed to set prop " + key, e);
+            dlog(TAG + " Failed to set prop " + key);
         } catch (NumberFormatException e) {
-            Log.e(TAG, "Failed to parse value for field " + key, e);
+            dlog(TAG + " Failed to parse value for field " + key);
         }
     }
 
