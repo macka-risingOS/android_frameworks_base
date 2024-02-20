@@ -91,7 +91,6 @@ public class PropImitationHooks {
             "com.google.android.gms/.auth.uiflows.minutemaid.MinuteMaidActivity");
 
     private static Map<String, Object> sMainSpoofProps;
-    private static final Map<String, Object> gPhotosProps = createGoogleSpoofProps("Pixel XL", "google/marlin/marlin:10/QP1A.191005.007.A3/5972272:user/release-keys");
     private static final Map<String, Object> asusROG1Props = createGameProps("ASUS_Z01QD", "Asus");
     private static final Map<String, Object> asusROG3Props = createGameProps("ASUS_I003D", "Asus");
     private static final Map<String, Object> xperia5Props = createGameProps("SO-52A", "Sony");
@@ -243,12 +242,15 @@ public class PropImitationHooks {
                     dlog("Setting stock fingerprint for: " + packageName);
                     setPropValue("FINGERPRINT", sStockFp);
                     break;
-                case PACKAGE_GPHOTOS:
-                    gPhotosProps.forEach((k, v) -> setPropValue(k, v));
-                    break;
                 default:
                     spoofGameProps(packageName);
                     break;
+            }
+            if (packageName.equals(PACKAGE_GPHOTOS)) {
+                if (SystemProperties.getBoolean("persist.sys.pixelprops.gphotos", true)) {
+                    dlog("Spoofing as Pixel XL for: " + packageName);
+                    spoofBuildPhotos();
+                }
             }
         }
     }
@@ -346,6 +348,18 @@ public class PropImitationHooks {
         final String callingPackage = context.getPackageManager().getNameForUid(callingUid);
         dlog("shouldBypassTaskPermission: callingPackage:" + callingPackage);
         return callingPackage != null && callingPackage.toLowerCase().contains("google");
+    }
+
+    private static void spoofBuildPhotos() {
+        // Pixel XL Props
+        setPropValue("BRAND", "google");
+        setPropValue("MANUFACTURER", "Google");
+        setPropValue("DEVICE", "marlin");
+        setPropValue("HARDWARE", "marlin");
+        setPropValue("ID", "QP1A.191005.007.A3");
+        setPropValue("FINGERPRINT", "google/marlin/marlin:10/QP1A.191005.007.A3/5972272:user/release-keys");
+        setPropValue("MODEL", "Pixel XL");
+        setPropValue("PRODUCT", "marlin");
     }
 
     private static boolean isCallerSafetyNet() {
