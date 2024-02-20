@@ -191,10 +191,11 @@ public class PropImitationHooks {
     private static final Set<String> EXCLUDED_PACKAGES = new HashSet<>(Arrays.asList(
             PACKAGE_ARCORE,
             PACKAGE_GCAM,
-            PACKAGE_GPHOTOS
+            PACKAGE_GPHOTOS,
+            PACKAGE_SETUPWIZARD
     ));
 
-    private static volatile boolean sIsGms, sIsGmsUi, sIsGmsPersist, sIsFinsky, sisGoogleApp, sIsGoogleProcess;
+    private static volatile boolean sIsGms, sIsGmsUi, sIsGmsPersist, sIsFinsky, sisGoogleApp, sIsGoogleProcess, sIsExcluded;
     private static volatile String sProcessName;
 
     public static void setProps(Context appContext) {
@@ -229,8 +230,9 @@ public class PropImitationHooks {
         sIsFinsky = packageName.equals(PACKAGE_FINSKY);
         sisGoogleApp = packageName.toLowerCase().contains("google");
         sIsGoogleProcess = processName.toLowerCase().contains("google");
+        sIsExcluded = EXCLUDED_PACKAGES.contains(packageName);
         if ((sisGoogleApp || sIsGoogleProcess)
-            && !EXCLUDED_PACKAGES.contains(packageName) 
+            && !sIsExcluded
             && (!sIsGms || !sIsGmsPersist || !sIsGmsUi)) {
             dlog("Spoofing build for Google Services");
             setPropValue("TIME", System.currentTimeMillis());
@@ -344,7 +346,7 @@ public class PropImitationHooks {
     }
 
     public static void onEngineGetCertificateChain() {
-        if ((isCallerSafetyNet() || sIsFinsky)) {
+        if ((isCallerSafetyNet() || sIsFinsky) && !sIsExcluded) {
             dlog("Blocked key attestation sIsGms=" + sIsGms + " sIsFinsky=" + sIsFinsky);
             throw new UnsupportedOperationException();
         }
