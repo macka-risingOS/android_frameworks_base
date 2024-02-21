@@ -191,6 +191,7 @@ public class PropImitationHooks {
             PACKAGE_ARCORE,
             PACKAGE_GCAM,
             PACKAGE_GPHOTOS,
+            PACKAGE_GMS,
             PACKAGE_SETUPWIZARD
     ));
 
@@ -230,9 +231,7 @@ public class PropImitationHooks {
         sisGoogleApp = packageName.toLowerCase().contains("google");
         sIsGoogleProcess = processName.toLowerCase().contains("google");
         sIsExcluded = EXCLUDED_PACKAGES.contains(packageName);
-        if ((sisGoogleApp || sIsGoogleProcess)
-            && !sIsExcluded
-            && (!sIsGms || !sIsGmsPersist || !sIsGmsUi)) {
+        if ((sisGoogleApp || sIsGoogleProcess) && !sIsExcluded) {
             dlog("Spoofing build for Google Services");
             setPropValue("TIME", System.currentTimeMillis());
             sMainSpoofProps.forEach((k, v) -> setPropValue(k, v));
@@ -250,6 +249,13 @@ public class PropImitationHooks {
                 if (SystemProperties.getBoolean("persist.sys.pixelprops.gphotos", true)) {
                     dlog("Spoofing as Pixel XL for: " + packageName);
                     spoofBuildPhotos();
+                }
+            }
+            if (sIsGms || sIsGmsPersist || sIsGmsUi) {
+                if (SystemProperties.getBoolean("persist.sys.pixelprops.gms", true)) {
+                    dlog("Spoofing GMS to pass integrity");
+                    setPropValue("TIME", System.currentTimeMillis());
+                    spoofBuildGms();
                 }
             }
         }
@@ -360,6 +366,17 @@ public class PropImitationHooks {
         setPropValue("FINGERPRINT", "google/marlin/marlin:10/QP1A.191005.007.A3/5972272:user/release-keys");
         setPropValue("MODEL", "Pixel XL");
         setPropValue("PRODUCT", "marlin");
+    }
+
+    private static void spoofBuildGms() {
+        // Alter build parameters to avoid hardware attestation enforcement
+        setPropValue("BRAND", "Hisense");
+        setPropValue("MANUFACTURER", "Hisense");
+        setPropValue("DEVICE", "HS6735MT");
+        setPropValue("ID", "MRA58K");
+        setPropValue("FINGERPRINT", "Hisense/F30/HS6735MT:6.0/MRA58K/L1228.6.01.01:user/release-keys");
+        setPropValue("MODEL", "Hisense F30");
+        setPropValue("PRODUCT", "F30");
     }
 
     private static boolean isCallerSafetyNet() {
