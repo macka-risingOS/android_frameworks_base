@@ -53,6 +53,7 @@ public class PropImitationHooks {
 
     private static final String TAG = "PropImitationHooks";
     private static final boolean DEBUG = SystemProperties.getBoolean("persist.sys.pihooks.debug", false);
+    private static final String PIHOOKS_PROP = "persist.sys.pihooks.";
     
     private static final String PRODUCT_DEVICE = "ro.product.device";
 
@@ -370,13 +371,13 @@ public class PropImitationHooks {
 
     private static void spoofBuildGms() {
         // Alter build parameters to avoid hardware attestation enforcement
-        setPropValue("BRAND", "Hisense");
-        setPropValue("MANUFACTURER", "Hisense");
-        setPropValue("DEVICE", "HS6735MT");
-        setPropValue("ID", "MRA58K");
-        setPropValue("FINGERPRINT", "Hisense/F30/HS6735MT:6.0/MRA58K/L1228.6.01.01:user/release-keys");
-        setPropValue("MODEL", "Hisense F30");
-        setPropValue("PRODUCT", "F30");
+        setPropValue("BRAND", SystemProperties.get(PIHOOKS_PROP + "brand"));
+        setPropValue("MANUFACTURER", SystemProperties.get(PIHOOKS_PROP + "manufacturer"));
+        setPropValue("DEVICE", SystemProperties.get(PIHOOKS_PROP + "product_device"));
+        setPropValue("ID", SystemProperties.get(PIHOOKS_PROP + "build_id"));
+        setPropValue("FINGERPRINT", SystemProperties.get(PIHOOKS_PROP + "build_fingerprint"));
+        setPropValue("MODEL", SystemProperties.get(PIHOOKS_PROP + "product_model"));
+        setPropValue("PRODUCT", SystemProperties.get(PIHOOKS_PROP + "product_name"));
     }
 
     private static boolean isCallerSafetyNet() {
