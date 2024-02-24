@@ -3049,7 +3049,9 @@ public class OomAdjuster {
                 mProcessGroupHandler.sendMessage(mProcessGroupHandler.obtainMessage(
                         0 /* unused */, app.getPid(), processGroup, app.processName));
                 try {
-                    mService.updateCgroupPrioLocked(app.getPid());
+                    if (app.getPid() > 0) {
+                        mService.updateCgroupPrioLocked(app.getPid());
+                    }
                     final int renderThreadTid = app.getRenderThreadTid();
                     if (curSchedGroup == SCHED_GROUP_TOP_APP) {
                         // do nothing if we already switched to RT
@@ -3058,9 +3060,9 @@ public class OomAdjuster {
                             if (!Process.isAppRegular(app.getPid())) {
                                 // Switch UI pipeline for app to SCHED_FIFO
                                 state.setSavedPriority(Process.getThreadPriority(app.getPid()));
-                                mService.scheduleAsFifoPriority(app.getPid(), 1, true);
+                                mService.scheduleAsFifoPriority(app.getPid(), THREAD_PRIORITY_TOP_APP_BOOST, true);
                                 if (renderThreadTid != 0) {
-                                    mService.scheduleAsFifoPriority(renderThreadTid, 1, /* suppressLogs */true);
+                                    mService.scheduleAsFifoPriority(renderThreadTid, THREAD_PRIORITY_TOP_APP_BOOST, /* suppressLogs */true);
                                 }
                             }
                         }

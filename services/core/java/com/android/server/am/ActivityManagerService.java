@@ -36,6 +36,9 @@ import static android.app.ActivityManager.PROCESS_CAPABILITY_ALL;
 import static android.app.ActivityManager.PROCESS_STATE_BOUND_TOP;
 import static android.app.ActivityManager.PROCESS_STATE_IMPORTANT_FOREGROUND;
 import static android.app.ActivityManager.PROCESS_STATE_NONEXISTENT;
+import static android.app.ActivityManager.PROCESS_STATE_BOUND_FOREGROUND_SERVICE;
+import static android.app.ActivityManager.PROCESS_STATE_FOREGROUND_SERVICE;
+import static android.app.ActivityManager.PROCESS_STATE_RECEIVER;
 import static android.app.ActivityManager.PROCESS_STATE_TOP;
 import static android.app.ActivityManager.StopUserOnSwitch;
 import static android.app.ActivityManager.UidFrozenStateChangedCallback.UID_FROZEN_STATE_FROZEN;
@@ -525,7 +528,6 @@ public class ActivityManagerService extends IActivityManager.Stub
     private static final String SYSTEM_PROPERTY_DEVICE_PROVISIONED =
             "persist.sys.device_provisioned";
 
-    private static final int BG_CPU_SHARES = 512; // 2.5%
     private static final int DEFAULT_CPU_SHARES = 1024; // 5%
     private static final int FG_CPU_SHARES = 10240; // 50%
     private static final int TOP_APP_CPU_SHARES = 20480; // 100%
@@ -4481,34 +4483,39 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     final void updateCgroupPrioLocked(int pid) {
-        int uid = Process.uidFromPid(pid);
-        if ((!UserHandle.isApp(uid) || !UserHandle.isIsolated(uid)) && UserHandle.isCore(uid)) {
+        if (!Process.isAppRegular(pid)) {
             return;
         }
-        int cpuShares = DEFAULT_CPU_SHARES;
-        synchronized (mProcLock) {
-            ProcessRecord proc;
-            synchronized (mPidsSelfLocked) {
-                proc = mPidsSelfLocked.get(pid);
-            }
-            int schedulingGroup = proc.mState.getCurrentSchedulingGroup();
-            switch (schedulingGroup) {
-                case ProcessList.SCHED_GROUP_TOP_APP:
-                    cpuShares = TOP_APP_CPU_SHARES;
-                    break;
-                case ProcessList.SCHED_GROUP_TOP_APP_BOUND:
-                    cpuShares = FG_CPU_SHARES;
-                    break;
-                case ProcessList.SCHED_GROUP_BACKGROUND:
-                case ProcessList.SCHED_GROUP_RESTRICTED:
-                    cpuShares = BG_CPU_SHARES;
-                    break;
-            }
-        }
-        if (isAppForeground(uid)) {
-            cpuShares = FG_CPU_SHARES;
+        int cpuShares;
+        int prio;
+        int policy;
+        final int procState = getRealProcessStateLocked(null, pid);
+        switch (procState) {
+            case PROCESS_STATE_TOP:
+                cpuShares = TOP_APP_CPU_SHARES;
+                prio = Process.THREAD_PRIORITY_TOP_APP_BOOST;
+                policy = Process.SCHED_FIFO;
+                break;
+            case PROCESS_STATE_FOREGROUND_SERVICE:
+            case PROCESS_STATE_BOUND_FOREGROUND_SERVICE:
+                cpuShares = FG_CPU_SHARES;
+                prio = Process.THREAD_PRIORITY_FOREGROUND;
+                policy = Process.SCHED_RR;
+                break;
+            case PROCESS_STATE_RECEIVER:
+            case PROCESS_STATE_NONEXISTENT:
+                cpuShares = DEFAULT_CPU_SHARES / 2;
+                prio = Process.THREAD_PRIORITY_BACKGROUND;
+                policy = Process.SCHED_IDLE;
+                break;
+            default:
+                cpuShares = DEFAULT_CPU_SHARES;
+                prio = Process.THREAD_PRIORITY_DEFAULT;
+                policy = Process.SCHED_OTHER;
+                break;
         }
         Process.setUidPrio(pid, cpuShares);
+        scheduleAsCustomPolicy(pid, prio, policy);
     }
 
     @GuardedBy("this")
@@ -7883,6 +7890,9 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     public static boolean scheduleAsRegularPriority(int tid, int prio, boolean suppressLogs) {
         try {
+            if (prio != 0 && !Process.isAppRegular(tid)) {
+                    prio = 0;
+            }
             if (Process.isAppRegular(tid)) {
                 Process.putProc(tid);
             }
@@ -7910,6 +7920,9 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     public static boolean scheduleAsFifoPriority(int tid, int prio, boolean suppressLogs) {
         try {
+            if (prio != 1 && !Process.isAppRegular(tid)) {
+                    prio = 1;
+            }
             if (Process.isAppRegular(tid)) {
                 Process.putThreadInRoot(tid);
             }
@@ -7923,6 +7936,31 @@ public class ActivityManagerService extends IActivityManager.Stub
             if (!suppressLogs) {
                 Slog.w(TAG, "Failed to set scheduling policy, not allowed:\n" + e);
             }
+        }
+        return false;
+    }
+    
+    /**
+     * Schedule the given thread using custom scheduling policy and priority.
+     *
+     * @param tid the tid of the thread to adjust the scheduling of.
+     * @param prio the priority of the thread to adjust the scheduling of.
+     * @param schedPolicy the scheduling policy of the thread to adjust the scheduling of.
+     *
+     * @return {@code true} if this succeeded.
+     */
+    public static boolean scheduleAsCustomPolicy(int tid, int prio, int schedPolicy) {
+        try {
+            if (prio != 1 && !Process.isAppRegular(tid)) {
+                    prio = 1;
+            }
+            if (Process.isAppRegular(tid)) {
+                Process.putThreadInRoot(tid);
+            }
+            Process.setThreadScheduler(tid, schedPolicy, prio);
+            return true;
+        } catch (IllegalArgumentException e) {
+        } catch (SecurityException e) {
         }
         return false;
     }
@@ -7954,7 +7992,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                     if (DEBUG_OOM_ADJ) Slog.d("UI_FIFO", "Promoting " + tid + "out of band");
                     // Always boost the main/render thread for regular apps
                     final int rtid = proc.getRenderThreadTid();
-                    scheduleAsFifoPriority(rtid, Process.isAppRegular(rtid) ? THREAD_PRIORITY_TOP_APP_BOOST : 1, /*noLogs*/true);
+                    scheduleAsFifoPriority(rtid, THREAD_PRIORITY_TOP_APP_BOOST, /*noLogs*/true);
                 }
             }
         }
