@@ -3049,37 +3049,28 @@ public class OomAdjuster {
                 mProcessGroupHandler.sendMessage(mProcessGroupHandler.obtainMessage(
                         0 /* unused */, app.getPid(), processGroup, app.processName));
                 try {
-                    if (app.getPid() > 0) {
-                        mService.updateCgroupPrioLocked(app.getPid());
-                    }
                     final int renderThreadTid = app.getRenderThreadTid();
+                    final int pid = app.getPid();
+                    mService.updateCgroupPrioLocked(pid);
+                    if (renderThreadTid != 0) {
+                        mService.updateCgroupPrioLocked(renderThreadTid);
+                    }
                     if (curSchedGroup == SCHED_GROUP_TOP_APP) {
                         // do nothing if we already switched to RT
                         if (oldSchedGroup != SCHED_GROUP_TOP_APP) {
                             app.getWindowProcessController().onTopProcChanged();
-                            if (!Process.isAppRegular(app.getPid())) {
-                                // Switch UI pipeline for app to SCHED_FIFO
-                                state.setSavedPriority(Process.getThreadPriority(app.getPid()));
-                                mService.scheduleAsFifoPriority(app.getPid(), THREAD_PRIORITY_TOP_APP_BOOST, true);
-                                if (renderThreadTid != 0) {
-                                    mService.scheduleAsFifoPriority(renderThreadTid, THREAD_PRIORITY_TOP_APP_BOOST, /* suppressLogs */true);
-                                }
+                            Process.putThreadInRoot(pid);
+                            if (renderThreadTid != 0) {
+                                Process.putThreadInRoot(renderThreadTid);
                             }
                         }
                     } else if (oldSchedGroup == SCHED_GROUP_TOP_APP
                             && curSchedGroup != SCHED_GROUP_TOP_APP) {
                         app.getWindowProcessController().onTopProcChanged();
-                        if (!Process.isAppRegular(app.getPid())) {
-                            try {
-                                // Reset UI pipeline to SCHED_OTHER 
-                                mService.scheduleAsRegularPriority(app.getPid(),
-                                        state.getSavedPriority(), /* suppressLogs */ true);
-                                if (renderThreadTid != 0) {
-                                    mService.scheduleAsRegularPriority(renderThreadTid, THREAD_PRIORITY_DISPLAY, true);
-                                }
-                            } catch (Exception e) {
-                                Slog.w(TAG,
-                                        "Failed to set scheduling policy of " + app.getPid(), e);
+                        if (Process.isAppRegular(pid)) {
+                            Process.putProc(pid);
+                            if (renderThreadTid != 0) {
+                                Process.putProc(renderThreadTid);
                             }
                         }
                     }

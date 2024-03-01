@@ -528,8 +528,27 @@ public class ActivityManagerService extends IActivityManager.Stub
     private static final String SYSTEM_PROPERTY_DEVICE_PROVISIONED =
             "persist.sys.device_provisioned";
 
+    private static final int[] TOP_APP_PROC_STATES = {
+        ActivityManager.PROCESS_STATE_TOP
+    };
+
+    private static final int[] FG_PROC_STATES = {
+        ActivityManager.PROCESS_STATE_BOUND_TOP,
+        ActivityManager.PROCESS_STATE_TOP_SLEEPING,
+        ActivityManager.PROCESS_STATE_IMPORTANT_FOREGROUND,
+        ActivityManager.PROCESS_STATE_FOREGROUND_SERVICE,
+        ActivityManager.PROCESS_STATE_HEAVY_WEIGHT,
+        ActivityManager.PROCESS_STATE_HOME,
+        ActivityManager.PROCESS_STATE_PERSISTENT_UI,
+        ActivityManager.PROCESS_STATE_LAST_ACTIVITY
+    };
+
+    private static final int[] BG_PROC_STATES = {
+        ActivityManager.PROCESS_STATE_PERSISTENT,
+        ActivityManager.PROCESS_STATE_NONEXISTENT
+    };
+
     private static final int DEFAULT_CPU_SHARES = 1024; // 5%
-    private static final int FG_CPU_SHARES = 10240; // 50%
     private static final int TOP_APP_CPU_SHARES = 20480; // 100%
 
     static final String TAG = TAG_WITH_CLASS_NAME ? "ActivityManagerService" : TAG_AM;
@@ -4482,6 +4501,15 @@ public class ActivityManagerService extends IActivityManager.Stub
         return didSomething;
     }
 
+    private boolean isInProcessState(int currProcState, int[] states) {
+        for (int state : states) {
+            if (currProcState <= state) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     final void updateCgroupPrioLocked(int pid) {
         if (!Process.isAppRegular(pid)) {
             return;
@@ -4490,32 +4518,25 @@ public class ActivityManagerService extends IActivityManager.Stub
         int prio;
         int policy;
         final int procState = getRealProcessStateLocked(null, pid);
-        switch (procState) {
-            case PROCESS_STATE_TOP:
-                cpuShares = TOP_APP_CPU_SHARES;
-                prio = Process.THREAD_PRIORITY_TOP_APP_BOOST;
-                policy = Process.SCHED_FIFO;
-                break;
-            case PROCESS_STATE_FOREGROUND_SERVICE:
-            case PROCESS_STATE_BOUND_FOREGROUND_SERVICE:
-                cpuShares = FG_CPU_SHARES;
-                prio = Process.THREAD_PRIORITY_FOREGROUND;
-                policy = Process.SCHED_RR;
-                break;
-            case PROCESS_STATE_RECEIVER:
-            case PROCESS_STATE_NONEXISTENT:
-                cpuShares = DEFAULT_CPU_SHARES / 2;
-                prio = Process.THREAD_PRIORITY_BACKGROUND;
-                policy = Process.SCHED_IDLE;
-                break;
-            default:
-                cpuShares = DEFAULT_CPU_SHARES;
-                prio = Process.THREAD_PRIORITY_DEFAULT;
-                policy = Process.SCHED_OTHER;
-                break;
+        if (isInProcessState(procState, TOP_APP_PROC_STATES)) {
+            cpuShares = TOP_APP_CPU_SHARES;
+            prio = Process.THREAD_PRIORITY_TOP_APP_BOOST;
+            policy = Process.SCHED_FIFO;
+        } else if (isInProcessState(procState, FG_PROC_STATES)) {
+            cpuShares = DEFAULT_CPU_SHARES;
+            prio = Process.THREAD_PRIORITY_FOREGROUND;
+            policy = Process.SCHED_RR;
+        } else if (isInProcessState(procState, BG_PROC_STATES)) {
+            cpuShares = DEFAULT_CPU_SHARES / 2;
+            prio = Process.THREAD_PRIORITY_BACKGROUND;
+            policy = Process.SCHED_IDLE;
+        } else {
+            cpuShares = DEFAULT_CPU_SHARES;
+            prio = Process.THREAD_PRIORITY_DEFAULT;
+            policy = Process.SCHED_OTHER;
         }
-        Process.setUidPrio(pid, cpuShares);
         scheduleAsCustomPolicy(pid, prio, policy);
+        Process.setUidPrio(pid, cpuShares);
     }
 
     @GuardedBy("this")
@@ -7923,9 +7944,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             if (prio != 1 && !Process.isAppRegular(tid)) {
                     prio = 1;
             }
-            if (Process.isAppRegular(tid)) {
-                Process.putThreadInRoot(tid);
-            }
+            Process.putThreadInRoot(tid);
             Process.setThreadScheduler(tid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, prio);
             return true;
         } catch (IllegalArgumentException e) {
@@ -7954,9 +7973,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             if (prio != 1 && !Process.isAppRegular(tid)) {
                     prio = 1;
             }
-            if (Process.isAppRegular(tid)) {
-                Process.putThreadInRoot(tid);
-            }
+            Process.putThreadInRoot(tid);
             Process.setThreadScheduler(tid, schedPolicy, prio);
             return true;
         } catch (IllegalArgumentException e) {
