@@ -188,14 +188,6 @@ public class PropImitationHooks {
             "com.dts.freefireth"
     ));
 
-    private static final Set<String> EXCLUDED_PACKAGES = new HashSet<>(Arrays.asList(
-            PACKAGE_ARCORE,
-            PACKAGE_GCAM,
-            PACKAGE_GPHOTOS,
-            PACKAGE_GMS,
-            PACKAGE_SETUPWIZARD
-    ));
-
     private static volatile boolean sIsGms, sIsGmsUi, sIsGmsPersist, sIsFinsky, sisGoogleApp, sIsGoogleProcess, sIsExcluded;
     private static volatile String sProcessName;
 
@@ -220,6 +212,9 @@ public class PropImitationHooks {
             }
         }
         if (processName == null) return;
+        final Resources res = appContext.getResources();
+        if (res == null) return;
+        final String[] EXCLUDED_PACKAGES = res.getStringArray(R.array.config_pihooks_exclude_list);
         final boolean sIsTablet = isDeviceTablet(appContext);
         final String sMainModelSpoof = sIsTablet ? sMainModelTablet : sMainModel;
         final String sMainFpSpoof = sIsTablet ? sMainFpTablet : sMainFP;
@@ -231,7 +226,7 @@ public class PropImitationHooks {
         sIsFinsky = packageName.equals(PACKAGE_FINSKY);
         sisGoogleApp = packageName.toLowerCase().contains("google");
         sIsGoogleProcess = processName.toLowerCase().contains("google");
-        sIsExcluded = EXCLUDED_PACKAGES.contains(packageName);
+        sIsExcluded = Arrays.asList(EXCLUDED_PACKAGES).contains(packageName);
         if ((sisGoogleApp || sIsGoogleProcess) && !sIsExcluded) {
             dlog("Spoofing build for Google Services");
             setPropValue("TIME", System.currentTimeMillis());
