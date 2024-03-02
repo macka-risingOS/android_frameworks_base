@@ -2499,7 +2499,9 @@ public final class CachedAppOptimizer {
             }
             if (state.hasForegroundActivities() 
                 || state.hasOverlayUi()
-                || uidRec.getCurProcState() <= PROCESS_STATE_IMPORTANT_FOREGROUND) {
+                || state.getSetAdj() >= ProcessList.FOREGROUND_APP_ADJ
+                || uidRec.getCurProcState() <= PROCESS_STATE_IMPORTANT_FOREGROUND
+                || state.isRunningRemoteAnimation()) {
                 interactiveProcessRecords.computeIfAbsent(app.info.packageName, k -> new ArraySet<>()).add(app);
                 return true;
             } else {
